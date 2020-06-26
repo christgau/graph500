@@ -21,10 +21,10 @@ extern int64_t nbytes_sent,nbytes_rcvd;
 #endif
 // variables shared from bfs_reference
 extern oned_csr_graph g;
-extern int qc,q2c;
-extern int* q1,*q2;
-extern int* rowstarts;
-extern int64_t* column,*pred_glob,visited_size;
+extern size_t qc,q2c;
+extern int64_t* q1,*q2;
+extern size_t* rowstarts;
+extern int64_t *column,*pred_glob,visited_size;
 extern unsigned long * visited;
 #ifdef SSSP
 //global variables as those accesed by active message handler
@@ -33,7 +33,7 @@ float glob_maxdelta, glob_mindelta; //range for current bucket
 float *weights;
 volatile int lightphase;
 
-//Relaxation data type 
+//Relaxation data type
 typedef struct  __attribute__((__packed__)) relaxmsg {
 	float w; //weight of an edge
 	int dest_vloc; //local index of destination vertex
@@ -69,7 +69,7 @@ void send_relax(int64_t glob, float weight,int fromloc) {
 
 void run_sssp(int64_t root,int64_t* pred,float *dist) {
 
-	unsigned int i,j;
+	size_t i,j;
 	long sum=0;
 
 	float delta = 0.1;
@@ -92,7 +92,9 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
 	aml_barrier();
 	sum=1;
 
+#ifdef DEBUGSTATS
 	int64_t lastvisited=1;
+#endif
 	while(sum!=0) {
 #ifdef DEBUGSTATS
 		double t0 = aml_time();
@@ -109,7 +111,7 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
 						send_relax(COLUMN(j),dist[q1[i]]+weights[j],q1[i]);
 			aml_barrier();
 
-			qc=q2c;q2c=0;int *tmp=q1;q1=q2;q2=tmp;
+			qc=q2c;q2c=0;int64_t *tmp=q1;q1=q2;q2=tmp;
 			sum=qc;
 			aml_long_allsum(&sum);
 		}
@@ -150,7 +152,7 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
 }
 
 void clean_shortest(float* dist) {
-	int i;
+	size_t i;
 	for(i=0;i<g.nlocalverts;i++) dist[i]=-1.0;
 }
 #endif

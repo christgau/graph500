@@ -28,8 +28,8 @@ extern int64_t nbytes_sent,nbytes_rcvd;
 #endif
 // two arrays holding visited VERTEX_LOCALs for current and next level
 // we swap pointers each time
-int *q1,*q2;
-int qc,q2c; //pointer to first free element
+int64_t *q1,*q2;
+size_t qc,q2c; //pointer to first free element
 
 //VISITED bitmap parameters
 unsigned long *visited;
@@ -38,14 +38,14 @@ int64_t visited_size;
 //global variables of CSR graph to be used inside of AM-handlers
 int64_t *column;
 int64_t *pred_glob;
-unsigned int * rowstarts;
+size_t *rowstarts;
 
 oned_csr_graph g;
 
 typedef struct visitmsg {
 	//both vertexes are VERTEX_LOCAL components as we know src and dest PEs to reconstruct VERTEX_GLOBAL
-	int vloc;
-	int vfrom;
+	int64_t vloc;
+	int64_t vfrom;
 } visitmsg;
 
 //AM-handler for check&visit
@@ -58,21 +58,21 @@ void visithndl(int from,void* data,int sz) {
 	}
 }
 
-inline void send_visit(int64_t glob, int from) {
+void send_visit(int64_t glob, int64_t from) {
 	visitmsg m = {VERTEX_LOCAL(glob),from};
 	aml_send(&m,1,sizeof(visitmsg),VERTEX_OWNER(glob));
 }
 
 void make_graph_data_structure(const tuple_graph* const tg) {
-	int i,j,k;
+	size_t i;
 	convert_graph_to_oned_csr(tg, &g);
 	column=g.column;
 	rowstarts=g.rowstarts;
 
 	visited_size = (g.nlocalverts + ulong_bits - 1) / ulong_bits;
 	aml_register_handler(visithndl,1);
-	q1 = xmalloc(g.nlocalverts*sizeof(int)); //100% of vertexes
-	q2 = xmalloc(g.nlocalverts*sizeof(int));
+	q1 = xmalloc(g.nlocalverts*sizeof(*q1)); //100% of vertexes
+	q2 = xmalloc(g.nlocalverts*sizeof(*q2));
 	for(i=0;i<g.nlocalverts;i++) q1[i]=0,q2[i]=0; //touch memory
 	visited = xmalloc(visited_size*sizeof(unsigned long));
 }
@@ -80,7 +80,7 @@ void make_graph_data_structure(const tuple_graph* const tg) {
 void run_bfs(int64_t root, int64_t* pred) {
 	int64_t nvisited;
 	long sum;
-	unsigned int i,j,k,lvl=1;
+	size_t i,j;
 	pred_glob=pred;
 	aml_register_handler(visithndl,1);
 
@@ -94,7 +94,7 @@ void run_bfs(int64_t root, int64_t* pred) {
 		SET_VISITED(root);
 		q1[0]=VERTEX_LOCAL(root);
 		qc=1;
-	} 
+	}
 
 	// While there are vertices in current level
 	while(sum) {
@@ -108,7 +108,7 @@ void run_bfs(int64_t root, int64_t* pred) {
 				send_visit(COLUMN(j),q1[i]);
 		aml_barrier();
 
-		qc=q2c;int *tmp=q1;q1=q2;q2=tmp;
+		qc=q2c; int64_t *tmp=q1;q1=q2;q2=tmp;
 		sum=qc;
 		aml_long_allsum(&sum);
 
@@ -127,8 +127,8 @@ void run_bfs(int64_t root, int64_t* pred) {
 
 //we need edge count to calculate teps. Validation will check if this count is correct
 void get_edge_count_for_teps(int64_t* edge_visit_count) {
-	long i,j;
-	long edge_count=0;
+	size_t i,j;
+	int64_t edge_count=0;
 	for(i=0;i<g.nlocalverts;i++)
 		if(pred_glob[i]!=-1) {
 			for(j=rowstarts[i];j<rowstarts[i+1];j++)
@@ -142,11 +142,10 @@ void get_edge_count_for_teps(int64_t* edge_visit_count) {
 }
 
 void clean_pred(int64_t* pred) {
-	int i;
+	size_t i;
 	for(i=0;i<g.nlocalverts;i++) pred[i]=-1;
 }
 void free_graph_data_structure(void) {
-	int i; 
 	free_oned_csr_graph(&g);
 	free(q1); free(q2); free(visited);
 }

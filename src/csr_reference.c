@@ -23,7 +23,7 @@
 #include <search.h>
 
 int64_t nverts_known = 0;
-int *degrees;
+int64_t *degrees;
 int64_t *column;
 float *weights;
 extern oned_csr_graph g; //from bfs_reference for isisolated function
@@ -35,55 +35,56 @@ int isisolated(int64_t v) {
 }
 
 void halfedgehndl(int from,void* data,int sz)
-{  degrees[*(int*)data]++; }
+{
+    degrees[*(int64_t*)data]++;
+}
 
 void fulledgehndl(int frompe,void* data,int sz) {
-	int vloc = *(int*)data;
-	int64_t gtgt = *((int64_t*)(data+4));
+	int64_t vloc = *(int64_t*)data;
+	int64_t gtgt = *((int64_t*)(data) + 1);
 	SETCOLUMN(degrees[vloc]++,gtgt);
 #ifdef SSSP
-	float w = ((float*)data)[3];
+	float w = *((float*)((char*) data + 2 * sizeof(int64_t)));
 	weights[degrees[vloc]-1]=w;
 #endif
 }
 
 void send_half_edge (int64_t src,int64_t tgt) {
 	int pe=VERTEX_OWNER(src);
-	int vloc=VERTEX_LOCAL(src);
-	aml_send(&vloc,1,4,pe);
+	int64_t vloc=VERTEX_LOCAL(src);
+	aml_send(&vloc,1,sizeof(vloc),pe);
 	if(tgt>=nverts_known) nverts_known=tgt+1;
 }
 #ifdef SSSP
 void send_full_edge (int64_t src,int64_t tgt,float w) {
 	int pe=VERTEX_OWNER(src);
-	int vloc[4];
-	vloc[0]=VERTEX_LOCAL(src);
-	memcpy(vloc+1,&tgt,8);
-	memcpy(vloc+3,&w,4);
-	aml_send(vloc,1,16,pe);
+	int64_t vloc[3];
+	vloc[0] = src;
+	vloc[1] = tgt;
+	memcpy(vloc + 2, &w, sizeof(w));
+	aml_send(vloc, 1, sizeof(vloc), pe);
 }
 #else
 void send_full_edge (int64_t src,int64_t tgt) {
 	int pe=VERTEX_OWNER(src);
-	int vloc[3];
-	vloc[0]=VERTEX_LOCAL(src);
-	memcpy(vloc+1,&tgt,8);
-	aml_send(vloc,1,12,pe);
+	int64_t vloc[2];
+	vloc[0] = VERTEX_LOCAL(src);
+	vloc[1] = tgt;
+	aml_send(vloc, 1, sizeof(vloc), pe);
 }
 #endif
 
 void convert_graph_to_oned_csr(const tuple_graph* const tg, oned_csr_graph* const g) {
 	g->tg = tg;
 
-	size_t i,j,k;
+	size_t i;
 
 	int64_t nvert=tg->nglobaledges/2;
 	nvert/=num_pes();
 	nvert+=1;
-	degrees=xcalloc(nvert,sizeof(int));
+	degrees=xcalloc(nvert,sizeof(*degrees));
 
 	aml_register_handler(halfedgehndl,1);
-	int numiters=ITERATE_TUPLE_GRAPH_BLOCK_COUNT(tg);
 	// First pass : calculate degrees of each vertex
 	ITERATE_TUPLE_GRAPH_BEGIN(tg, buf, bufsize,wbuf) {
 		ptrdiff_t j;
@@ -131,7 +132,7 @@ void convert_graph_to_oned_csr(const tuple_graph* const tg, oned_csr_graph* cons
 
 	g->notisolated=g->nglobalverts-isolated;
 #endif
-	unsigned int *rowstarts = xmalloc((nlocalverts + 1) * sizeof(int));
+	size_t *rowstarts = xmalloc((nlocalverts + 1) * sizeof(size_t));
 	g->rowstarts = rowstarts;
 
 	rowstarts[0] = 0;
@@ -143,7 +144,7 @@ void convert_graph_to_oned_csr(const tuple_graph* const tg, oned_csr_graph* cons
 	size_t nlocaledges = rowstarts[nlocalverts];
 	g->nlocaledges = nlocaledges;
 
-	int64_t colalloc = BYTES_PER_VERTEX*nlocaledges;
+	size_t colalloc = BYTES_PER_VERTEX*nlocaledges;
 	colalloc += (4095);
 	colalloc /= 4096;
 	colalloc *= 4096;
@@ -168,7 +169,7 @@ void convert_graph_to_oned_csr(const tuple_graph* const tg, oned_csr_graph* cons
 #ifdef SSSP
 			send_full_edge(v0, v1,wbuf[j]);
 			send_full_edge(v1, v0,wbuf[j]);
-#else				
+#else
 			send_full_edge(v0, v1);
 			send_full_edge(v1, v0);
 #endif

@@ -313,7 +313,7 @@ int stringCmp( const void *a, const void *b)
 
 // Should be called by user instead of MPI_Init()
 SOATTR int aml_init( int *argc, char ***argv ) {
-	int r, i, j,tmpmax;
+	int r, i, j;
 
 	r = MPI_Init(argc, argv);
 	if ( r != MPI_SUCCESS ) return r;

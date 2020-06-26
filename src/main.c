@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
 	const char* filename = getenv("TMPFILE");
 #ifdef SSSP
 	int wmode;
-	char *wfilename=NULL;  
+	char *wfilename=NULL;
 	if(filename!=NULL) {
 		wfilename=malloc(strlen(filename)+9);
 		wfilename[0]='\0';strcat(wfilename,filename);strcat(wfilename,".weights");
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
 			} else {
 				MPI_Offset size;
 				MPI_File_get_size(tg.edgefile, &size);
-				if (size == tg.nglobaledges * sizeof(packed_edge)) {
+				if ((uint64_t) size == tg.nglobaledges * sizeof(packed_edge)) {
 #ifdef SSSP
 					wmode=mode;
 					if(MPI_File_open(MPI_COMM_WORLD, (char*)wfilename, mode, MPI_INFO_NULL, &tg.weightfile))
@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
 		if (!is_opened) {
 			MPI_File_open(MPI_COMM_WORLD, (char*)wfilename, wmode, MPI_INFO_NULL, &tg.weightfile);
 			MPI_File_set_size(tg.weightfile, tg.nglobaledges * sizeof(float));
-		}    
+		}
 		MPI_File_set_view(tg.weightfile, 0, MPI_FLOAT, MPI_FLOAT, "native", MPI_INFO_NULL);
 		MPI_File_set_atomicity(tg.weightfile, 0);
 #endif
@@ -192,9 +192,7 @@ int main(int argc, char** argv) {
 			int periods[2] = {0, 0};
 			MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 1, &cart_comm);
 		}
-		int in_generating_rectangle = 0;
 		if (cart_comm != MPI_COMM_NULL) {
-			in_generating_rectangle = 1;
 			{
 				int dims[2], periods[2], coords[2];
 				MPI_Cart_get(cart_comm, 2, dims, periods, coords);
@@ -312,7 +310,7 @@ int main(int argc, char** argv) {
 				make_random_numbers(2, seed1, seed2, counter, d);
 				root = (int64_t)((d[0] + d[1]) * nglobalverts) % nglobalverts;
 				counter += 2;
-				if (counter > 2 * nglobalverts) break;
+				if (counter > (uint64_t) (2 * nglobalverts)) break;
 				int is_duplicate = 0;
 				int i;
 				for (i = 0; i < bfs_root_idx; ++i) {
@@ -345,7 +343,7 @@ int main(int argc, char** argv) {
 	float* shortest = (float*)xMPI_Alloc_mem(nlocalverts * sizeof(float));
 
 
-	int bfs_root_idx,i;
+	int bfs_root_idx;
 	if (!getenv("SKIP_BFS")) {
 		clean_pred(&pred[0]); //user-provided function from bfs_implementation.c
 		run_bfs(bfs_roots[0], &pred[0]); //warm-up
@@ -360,7 +358,7 @@ int main(int argc, char** argv) {
                 if(!my_pe()) printf("finished energy loop BFS\n");
 #endif
 		if (!getenv("SKIP_VALIDATION")) {
-			int64_t nedges=0;
+//			int64_t nedges=0;
 			validate_result(1,&tg, nlocalverts, bfs_roots[0], pred,shortest,NULL);
 		}
 
@@ -472,7 +470,7 @@ int main(int argc, char** argv) {
 		MPI_File_close(&tg.edgefile);
 #ifdef SSSP
 		MPI_File_close(&tg.weightfile);
-#endif    
+#endif
 	} else {
 		free(tg.edgememory); tg.edgememory = NULL;
 #ifdef SSSP
