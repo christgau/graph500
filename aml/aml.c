@@ -75,10 +75,6 @@ int pthread_setaffinity_np(pthread_t thread, size_t cpu_size,
 #include <malloc.h>
 #endif
 
-#ifdef __clang__
-#define inline static inline
-#endif
-
 #include <unistd.h>
 #include <mpi.h>
 
@@ -140,7 +136,7 @@ static MPI_Request rqsend_intra[NSEND_intra];
 static char recvbuf_intra[AGGR_intra*NRECV_intra];
 static MPI_Request rqrecv_intra[NRECV_intra];
 volatile static int ack_intra=0;
-inline void aml_send_intra(void *srcaddr, int type, int length, int local ,int from);
+inline static void aml_send_intra(void *srcaddr, int type, int length, int local ,int from);
 
 void aml_finalize(void);
 void aml_barrier(void);
@@ -189,7 +185,7 @@ static void process_intra(int fromlocal,int length ,char* message) {
 }
 
 // poll intranode message
-inline void aml_poll_intra(void) {
+inline static void aml_poll_intra(void) {
 	int flag, from, length,index;
 	MPI_Status status;
 	MPI_Testany( NRECV_intra,rqrecv_intra, &index, &flag, &status );
@@ -232,7 +228,7 @@ static void aml_poll(void) {
 }
 
 //flush internode buffer to destination node
-inline void flush_buffer( int node ) {
+inline static void flush_buffer( int node ) {
 	MPI_Status stsend;
 	int flag=0,index,tmp;
 	if (sendsize[node] == 0 && acks[node]==0 ) return;
@@ -249,7 +245,7 @@ inline void flush_buffer( int node ) {
 
 }
 //flush intranode buffer, NB:node is local number of pe in group
-inline void flush_buffer_intra( int node ) {
+inline static void flush_buffer_intra( int node ) {
 	MPI_Status stsend;
 	int flag=0,index,tmp;
 	if (sendsize_intra[node] == 0 && acks_intra[node]==0 ) return;
@@ -266,7 +262,7 @@ inline void flush_buffer_intra( int node ) {
 
 }
 
-inline void aml_send_intra(void *src, int type, int length, int local, int from) {
+inline static void aml_send_intra(void *src, int type, int length, int local, int from) {
 	//send to _another_ process from same group
 	int nmax = AGGR_intra - sendsize_intra[local] - sizeof(struct hdri);
 	if ( nmax < length ) {
